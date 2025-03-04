@@ -1,0 +1,82 @@
+apiVersion: backstage.io/v1beta2
+kind: Template
+metadata:
+  name: install-automotive-ci-operator
+  title: "Install Automotive CI Operator & Create Config CR"
+  description: "Installs the Automotive CI Operator from the community-operators catalog, then applies an operator-config CR."
+spec:
+  owner: coff-team
+  type: service
+  parameters:
+    - title: "Operator Channel"
+      type: string
+      description: "Subscription channel for the operator"
+      required: false
+      default: "alpha"
+
+    - title: "Subscription Namespace"
+      type: string
+      description: "Namespace where Subscription is created (e.g. openshift-operators)"
+      required: false
+      default: "openshift-operators"
+
+    - title: "Operator Config CR Namespace"
+      type: string
+      description: "Namespace for the operator-config instance"
+      required: false
+      default: "automotive-infra-operator"
+
+    - title: "Operator Config CR Name"
+      type: string
+      description: "Name of your operator-config instance"
+      required: false
+      default: "automotive-ci-config"
+
+    - title: "Operator Config CR Spec"
+      type: textarea
+      description: "YAML snippet for your operator-config spec"
+      required: false
+      default: |-
+        apiVersion: automotiveci.io/v1alpha1
+        kind: OperatorConfig
+        metadata:
+          name: automotive-ci-config
+        spec:
+          # Insert operator-config fields here
+          enableAwesomeFeature: true
+
+  steps:
+    - id: install-operator
+      name: "Install Automotive CI Operator"
+      action: shell:script
+      input:
+        script: |
+          cat <<EOF > subscription.yaml
+          apiVersion: operators.coreos.com/v1alpha1
+          kind: Subscription
+          metadata:
+            name: automotive-ci-subscription
+            namespace: {{ parameters.subscriptionNamespace }}
+          spec:
+            name: automotive-ci
+            channel: {{ parameters.operatorChannel }}
+            source: community-operators
+            sourceNamespace: openshift-marketplace
+          EOF
+
+          echo "Installing the Automotive CI Operator using the community-operators catalog..."
+          oc apply -f subscription.yaml
+
+    - id: apply-cr
+      name: "Apply Operator Config CR"
+      action: shell:script
+      input:
+        script: |
+          echo "{{ parameters.operatorConfigCrSpec }}" > operator-config.yaml
+
+          # Make sure the CR's metadata.namespace matches the user's desired namespace
+          # A simple patch example (optional), or you can let them specify it in the CR directly:
+          # yq e ".metadata.namespace = \"{{ parameters.operatorConfigCrNamespace }}\"" -i operator-config.yaml
+
+          echo "Applying operator-config in namespace {{ parameters.operatorConfigCrNamespace }}..."
+          oc apply -n {{ parameters.operatorConfigCrNamespace }} -f operator-config.yaml

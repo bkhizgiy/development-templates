@@ -1,0 +1,41 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: install-automotive-ci-operator
+  title: Install Automotive CI Operator & Create Config CR
+  description: Installs the Automotive CI
+spec:
+  owner: coff-team
+  type: service
+
+  parameters:
+    - title: "Operator Channel"
+      required:
+        - name
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Unique name of the component
+
+  steps:
+    - id: install-operator
+      name: "Install Automotive CI Operator"
+      action: shell:script
+      input:
+        script: |
+          cat <<EOF > subscription.yaml
+          apiVersion: operators.coreos.com/v1alpha1
+          kind: Subscription
+          metadata:
+            name: automotive-ci-subscription
+            namespace: {{ parameters.subscriptionNamespace }}
+          spec:
+            name: automotive-ci
+            channel: {{ parameters.operatorChannel }}
+            source: community-operators
+            sourceNamespace: openshift-marketplace
+          EOF
+
+          echo "Installing the Automotive CI Operator using the community-operators catalog..."
+          oc apply -f subscription.yaml

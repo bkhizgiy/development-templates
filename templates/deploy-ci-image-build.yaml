@@ -57,8 +57,9 @@ spec:
   steps:
     - id: install-operator
       name: "Install Automotive CI Operator"
-      action: bash
+      action: script
       input:
+        shell: bash
         script: |
           cat <<EOF > subscription.yaml
           apiVersion: operators.coreos.com/v1alpha1
@@ -78,8 +79,9 @@ spec:
 
     - id: apply-cr
       name: "Apply Operator Config CR"
-      action: bash
+      action: script
       input:
+        shell: bash
         script: |
           echo "{{ parameters.operatorConfigCrSpec }}" > operator-config.yaml
 

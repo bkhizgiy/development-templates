@@ -1,0 +1,100 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: install-jumpstarter-operator
+  title: "Install Jumpstarter Operator & Create Jumpstarter Controller Instance"
+  description: "Installs the Jumpstarter Operator, then applies a Jumpstarter resource."
+spec:
+  owner: example-team
+  type: service
+
+  parameters:
+    - title: "Jumpstarter Configuration"
+      required:
+        - operatorChannel
+        - subscriptionNamespace
+        - jumpstarterNamespace
+        - jumpstarterName
+        - jumpstarterSpec
+      properties:
+        operatorChannel:
+          title: "Operator Channel"
+          type: string
+          description: "Subscription channel for the Jumpstarter Operator"
+          default: "stable"
+
+        subscriptionNamespace:
+          title: "Subscription Namespace"
+          type: string
+          description: "Namespace where the Subscription is created (e.g., openshift-operators)"
+          default: "openshift-operators"
+
+        jumpstarterNamespace:
+          title: "Jumpstarter Namespace"
+          type: string
+          description: "Namespace for the Jumpstarter custom resource"
+          default: "jumpstarter-system"
+
+        jumpstarterName:
+          title: "Jumpstarter CR Name"
+          type: string
+          description: "Name of your Jumpstarter custom resource"
+          default: "jumpstarter-instance"
+
+        jumpstarterSpec:
+          title: "Jumpstarter CR Spec"
+          type: string
+          description: "YAML snippet for your Jumpstarter CR"
+          default: |-
+            apiVersion: jumpstarter.io/v1alpha1
+            kind: Jumpstarter
+            metadata:
+              name: jumpstarter-instance
+            spec:
+              # Example fields for the Jumpstarter CR
+              enableFeatureX: true
+
+  steps:
+    - id: generate-subscription
+      name: "Generate Subscription Manifest"
+      action: builtin:transform
+      input:
+        source:
+          type: inline
+          path: subscription.yaml
+          content: |
+            apiVersion: operators.coreos.com/v1alpha1
+            kind: Subscription
+            metadata:
+              name: jumpstarter-subscription
+              namespace: ${{ parameters.subscriptionNamespace }}
+            spec:
+              channel: ${{ parameters.operatorChannel }}
+              name: jumpstarter-operator
+              source: redhat-operators
+              sourceNamespace: openshift-marketplace
+
+    - id: apply-subscription
+      name: "Apply Jumpstarter Operator Subscription"
+      action: kubernetes:deploy
+      input:
+        manifests:
+          - ${{ steps.generate-subscription.output.transform.result }}
+
+    - id: generate-jumpstarter-cr
+      name: "Generate Jumpstarter CR"
+      action: builtin:transform
+      input:
+        source:
+          type: inline
+          path: jumpstarter-cr.yaml
+          content: |
+            ${{ parameters.jumpstarterSpec }}
+
+    - id: apply-jumpstarter-cr
+      name: "Apply Jumpstarter CR"
+      action: kubernetes:deploy
+      input:
+        manifests:
+          - ${{ steps.generate-jumpstarter-cr.output.transform.result }}
+        namespace: ${{ parameters.jumpstarterNamespace }}

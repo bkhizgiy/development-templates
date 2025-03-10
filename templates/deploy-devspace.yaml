@@ -1,0 +1,113 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: install-devspaces-operator
+  title: "Install DevSpaces Operator & Create DevSpaces Instance"
+  description: "Installs the DevSpaces Operator from the redhat-operators catalog, then applies a DevSpaces CR that references a GitHub repo."
+spec:
+  owner: coff-team
+  type: service
+
+  parameters:
+    - title: "DevSpaces Configuration"
+      required:
+        - operatorChannel
+        - subscriptionNamespace
+        - devspacesNamespace
+        - devspacesName
+        - githubRepo
+        - devspacesSpec
+      properties:
+        operatorChannel:
+          title: "Operator Channel"
+          type: string
+          description: "Subscription channel for the DevSpaces operator"
+          default: "stable"
+
+        subscriptionNamespace:
+          title: "Subscription Namespace"
+          type: string
+          description: "Namespace where the Subscription is created (e.g. openshift-operators)"
+          default: "openshift-operators"
+
+        devspacesNamespace:
+          title: "DevSpaces Namespace"
+          type: string
+          description: "Namespace for the DevSpaces (CheCluster) instance"
+          default: "devspaces"
+
+        devspacesName:
+          title: "DevSpaces CR Name"
+          type: string
+          description: "Name of your DevSpaces instance"
+          default: "devspaces"
+
+        githubRepo:
+          title: "GitHub Repository"
+          type: string
+          description: "The GitHub repository to clone or reference in DevSpaces"
+          default: "https://github.com/backstage/backstage"
+
+        devspacesSpec:
+          title: "DevSpaces CR Spec"
+          type: string
+          description: "YAML snippet for your DevSpaces CheCluster CR. You can reference {{ parameters.githubRepo }} if you like."
+          default: |-
+            apiVersion: che.eclipse.org/v2
+            kind: CheCluster
+            metadata:
+              name: devspaces
+            spec:
+              server:
+                cheImageTag: 'latest'
+              # Example: reference the GitHub repo in a dev environment
+              devEnvironments:
+                - name: "sample"
+                  source:
+                    git:
+                      uri: ${{ parameters.githubRepo }}
+
+  steps:
+    - id: generate-subscription
+      name: "Generate Subscription Manifest"
+      action: builtin:transform
+      input:
+        source:
+          type: inline
+          path: subscription.yaml
+          content: |
+            apiVersion: operators.coreos.com/v1alpha1
+            kind: Subscription
+            metadata:
+              name: devspaces
+              namespace: ${{ parameters.subscriptionNamespace }}
+            spec:
+              channel: ${{ parameters.operatorChannel }}
+              name: devspaces
+              source: redhat-operators
+              sourceNamespace: openshift-marketplace
+
+    - id: apply-subscription
+      name: "Apply DevSpaces Operator Subscription"
+      action: kubernetes:deploy
+      input:
+        manifests:
+          - ${{ steps.generate-subscription.output.transform.result }}
+
+    - id: generate-devspaces-instance
+      name: "Generate DevSpaces CR"
+      action: builtin:transform
+      input:
+        source:
+          type: inline
+          path: devspaces-cr.yaml
+          content: |
+            ${{ parameters.devspacesSpec }}
+
+    - id: apply-devspaces-instance
+      name: "Apply DevSpaces CR"
+      action: kubernetes:deploy
+      input:
+        manifests:
+          - ${{ steps.generate-devspaces-instance.output.transform.result }}
+        namespace: ${{ parameters.devspacesNamespace }}

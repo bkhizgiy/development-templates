@@ -1,8 +1,8 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: install-devspaces-operator
-  title: "Install DevSpaces Operator & Create DevSpaces Instance"
+  name: install-ci-k8s
+  title: "Install CI Operator with k8s"
   description: "Installs the DevSpaces Operator from the redhat-operators catalog, then applies a DevSpaces CR."
 spec:
   owner: example-team
@@ -57,7 +57,7 @@ spec:
   steps:
     - id: generate-subscription
       name: "Generate Subscription Manifest"
-      action: builtin:transform
+      action: kubernetes:deploy
       input:
         source:
           type: inline
